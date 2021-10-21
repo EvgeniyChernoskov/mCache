@@ -94,5 +94,7 @@ func (c *Cache) expiredKeys() (keys []string) {
 }
 
 func (c Cache) Size() (size int) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return len(c.items)
 }
