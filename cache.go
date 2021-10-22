@@ -30,7 +30,7 @@ func NewCache(expiration time.Duration, cleanInterval time.Duration) *Cache {
 
 func (c *Cache) Set(key string, value interface{}, ttl time.Duration) {
 	c.mutex.Lock()
-	c.mutex.Unlock()
+	defer c.mutex.Unlock()
 
 	if ttl == 0 {
 		ttl = c.expiration
