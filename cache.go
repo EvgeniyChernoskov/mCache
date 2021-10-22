@@ -2,6 +2,7 @@ package mCache
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -17,27 +18,29 @@ type Cache struct {
 	mutex      *sync.RWMutex
 }
 
-func NewCache(expiration time.Duration) *Cache {
-	cache := Cache{
+func NewCache(expiration time.Duration, cleanInterval time.Duration) *Cache {
+	cache := &Cache{
 		items:      make(map[string]Item),
 		expiration: expiration,
 		mutex:      new(sync.RWMutex),
 	}
-	return &cache
+	cache.runCleanCache(cleanInterval)
+	return cache
 }
 
 func (c *Cache) Set(key string, value interface{}, ttl time.Duration) {
-	var expiration int64
+	c.mutex.Lock()
+	c.mutex.Unlock()
+
 	if ttl == 0 {
 		ttl = c.expiration
 	}
-	expiration = time.Now().Add(ttl).UnixNano()
-	c.mutex.Lock()
+	expiration := time.Now().Add(ttl).UnixNano()
 	c.items[key] = Item{
 		Value:      value,
 		Expiration: expiration,
 	}
-	c.mutex.Unlock()
+
 }
 
 func (c *Cache) Get(key string) (interface{}, error) {
@@ -48,11 +51,11 @@ func (c *Cache) Get(key string) (interface{}, error) {
 	if !exist {
 		return nil, errors.New("key not exist")
 	}
-	// Если в момент запроса кеш устарел возвращаем nil
 	if time.Now().UnixNano() > item.Expiration {
+		// Если в момент запроса кеш устарел возвращаем nil
+		delete(c.items, key) //и сразу удаляем его
 		return nil, errors.New("expiration key")
 	}
-
 	return item.Value, nil
 }
 
@@ -77,6 +80,7 @@ func (c *Cache) Clean() {
 func (c *Cache) clearItems(keys []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	for _, k := range keys {
 		delete(c.items, k)
 	}
@@ -93,8 +97,20 @@ func (c *Cache) expiredKeys() (keys []string) {
 	return
 }
 
-func (c Cache) Size() (size int) {
+func (c *Cache) Size() (size int) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return len(c.items)
+}
+
+func (c *Cache) runCleanCache(interval time.Duration) {
+	go func() {
+		for {
+			select {
+			case <-time.NewTicker(interval).C:
+				c.Clean()
+				fmt.Println("clean, size:", c.Size()) //это только чтобы посмотреть как работает
+			}
+		}
+	}()
 }
