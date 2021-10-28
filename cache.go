@@ -18,13 +18,13 @@ type Cache struct {
 	mutex      *sync.RWMutex
 }
 
-func NewCache(expiration time.Duration, cleanInterval time.Duration) *Cache {
+func New(expiration time.Duration, cleanInterval time.Duration) *Cache {
 	cache := &Cache{
 		items:      make(map[string]Item),
 		expiration: expiration,
 		mutex:      new(sync.RWMutex),
 	}
-	cache.runCleanCache(cleanInterval)
+	go cache.runCleanCache(cleanInterval)
 	return cache
 }
 
@@ -104,7 +104,6 @@ func (c *Cache) Size() (size int) {
 }
 
 func (c *Cache) runCleanCache(interval time.Duration) {
-	go func() {
 		for {
 			select {
 			case <-time.NewTicker(interval).C:
@@ -112,5 +111,4 @@ func (c *Cache) runCleanCache(interval time.Duration) {
 				fmt.Println("clean, size:", c.Size()) //это только чтобы посмотреть как работает
 			}
 		}
-	}()
 }
